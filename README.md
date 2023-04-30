@@ -1,4 +1,4 @@
-﻿# shualleduri 1
+﻿# klasebi
  
  
     class Magazia:
@@ -79,7 +79,7 @@
 
 
 
-# shualleduri 2
+# bazebi
     import sqlite3
     import matplotlib.pyplot as plt
 
