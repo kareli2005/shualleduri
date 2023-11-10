@@ -1,320 +1,223 @@
-#python
+VLAN 100 10.0.0.128/26 - 10.0.0.191 255.255.255.192
+VLAN 200 10.0.0.0/25 - 10.0.0.127     255.255.255.128
+VLAN 300 10.0.0.192/27 - 10.0.0.223  255.255.255.224
+M2R1 – M2R2 100.0.0.0/30 - 1;2         255.255.255.252
+LAN1 172.16.0.0/24 - 172.16.0.255      255.255.255.0
 
 
-import sqlite3
-from bs4 import BeautifulSoup
-import requests
-
-db = 'nino.sqlite'
-conn = sqlite3.connect(db)
-cursor = conn.cursor()
-
-url = 'http://ninochkheidze.ge/contact-me/'
-r = requests.get(url=url)
-content = r.text
-
-soup = BeautifulSoup(content, 'html.parser')
-section = soup.find('div', {'class': 'entry-content'})
-ul = section.find('ul')
-li_list = ul.find_all('li')
-mail_start = 'Email: '
-address_start = 'Address:'
-mail = li_list[0].text
-instagram = li_list[1].text
-facebook = li_list[2].text
-address = li_list[3].text
-mail = mail.split(mail_start)[1].strip()
-address = address.split(address_start)[1].strip()
-data = [mail, instagram, facebook, address]
-
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS nino (
-        Email TEXT,
-        Instagram TEXT,
-        Facebook TEXT,
-        Address TEXT
-    )
-""")
-
-cursor.execute("INSERT INTO nino (Email, Instagram, Facebook, Address) VALUES (?, ?, ?, ?)", data)
-
-conn.commit()
-conn.close()
-////////////
-from flask import Flask, render_template, request, redirect, url_for
-import sqlite3
-
-class Users:
-    def __init__(self):
-        self.db = 'data.db'
-        self.create_table_query = '''CREATE TABLE IF NOT EXISTS users(
-            id INTEGER PRIMARY KEY,
-            username TEXT NOT NULL,
-            email TEXT NOT NULL,
-            password TEXT NOT NULL)'''
-        
-    def create_table(self):
-        with sqlite3.connect(self.db) as conn:
-            cursor = conn.cursor()
-            cursor.execute(self.create_table_query)
-
-    def get_last_id(self):
-        with sqlite3.connect(self.db) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT MAX(id) FROM users")
-            last_id = cursor.fetchone()[0]
-        return last_id
-
-    def insert_user(self, username, email, password):
-        with sqlite3.connect(self.db) as conn:
-            cursor = conn.cursor()
-            old_id = self.get_last_id()
-            id = old_id + 1 if old_id else 1
-            data = [id, username, email, password]
-            cursor.execute("INSERT INTO users (id, username, email, password) VALUES (?, ?, ?, ?)", data)
+---------------------ipv4--------------------------------
+M2S1
+en
+conf t
+hostname M2S1
+banner motd #This Network is Secured by BTU#
+line console 0
+password btu-mid-con
+login 
+exit
+vlan 100 
+name marketing
+vlan 200 
+name sales
+vlan 300 
+name management
+vlan 400 
+name native
+vlan 500 
+name unused
+exit
+int fa0/8
+switchport mode access
+switchport access vlan 200
+int fa0/6
+switchport mode access
+switchport access vlan 100
+int fa0/3
+switchport mode access
+switchport access vlan 300
+int range fa0/4-5
+switchport mode trunk
+switchport trunk native vlan 400
+int range fa0/7, fa0/1, fa0/9-24, gi0/1-2
+switchport mode access 
+switchport access vlan 500
+shutdown
+exit
+int vlan 300
+ip address 10.0.0.197 255.255.255.224
+exit
+ip default-gateway 10.0.0.194
+exit
+exit
+copy run-start
 
 
-app = Flask(__name__)
-
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    return render_template('login.html')
-
-@app.route('/home')
-def home():
-    return render_template('home.html')
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        username = request.form['username']
-        email = request.form['email']
-        password = request.form['password']
-        
-        user = Users()
-        user.create_table()
-        user.insert_user(username=username, email=email, password=password)
-        
-        return redirect(url_for('index'))
-    
-    return render_template('register.html')
-
-if __name__ == '__main__':
-    app.run(debug=True)
-//////////
-import os
-from flask import Flask, render_template, request, redirect, url_for, flash, session
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, date
-from flask_restful import Api, Resource, reqparse
-
-app = Flask(__name__)
-app.secret_key = 'diet'
-db_path = os.path.join(os.path.dirname(__file__), 'diet.db')
-db_uri = 'sqlite:///{}'.format(db_path)
-app.config["SQLALCHEMY_DATABASE_URI"] = db_uri
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-api = Api(app)
-
-db = SQLAlchemy(app)
-
-class Food(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    category = db.Column(db.String(50), nullable=False)
-    calorie = db.Column(db.Integer, nullable=False)
-    date_of_reception = db.Column(db.DateTime, nullable=False, default=datetime.now())
-
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), unique=True, nullable=False)
-    password = db.Column(db.String(100), nullable=False)
-    last_login = db.Column(db.DateTime, nullable=False, default=datetime.now())
-
-class FoodResource(Resource):
-    def get(self, food_id=None):
-        if food_id:
-            food = Food.query.get(food_id)
-            if food:
-                return {
-                    "id": food.id,
-                    "name": food.name,
-                    "category": food.category,
-                    "calorie": food.calorie,
-                }
-            else:
-                return {"message": "საკვების ინფორმაცია ვერ ვიპოვეთ"}, 404
-        else:
-            foods = Food.query.all()
-            result = [
-                {
-                    "id": food.id,
-                    "name": food.name,
-                    "category": food.category,
-                    "calorie": food.calorie,
-                }
-                for food in foods
-            ]
-            return result
-
-    def post(self):
-        parser = reqparse.RequestParser()
-        parser.add_argument("name", type=str, required=True, help="Name is required")
-        parser.add_argument(
-            "category", type=str, required=True, help="Category is required"
-        )
-        parser.add_argument(
-            "calorie", type=int, required=True, help="Calorie is required"
-        )
-        args = parser.parse_args()
-
-        name = args["name"]
-        category = args["category"]
-        calorie = args["calorie"]
-
-        food = Food(name=name, category=category, calorie=calorie)
-        db.session.add(food)
-        db.session.commit()
-
-        return {"message": "საკვების ინფორმაცია წარმატებით დაემატა"}, 201
-
-    def put(self, food_id):
-        parser = reqparse.RequestParser()
-        parser.add_argument("name", type=str, required=True, help="Name is required")
-        parser.add_argument(
-            "category", type=str, required=True, help="Category is required"
-        )
-        parser.add_argument(
-            "calorie", type=int, required=True, help="Calorie is required"
-        )
-        args = parser.parse_args()
-
-        name = args["name"]
-        category = args["category"]
-        calorie = args["calorie"]
-
-        food = Food.query.get(food_id)
-        if food:
-            food.name = name
-            food.category = category
-            food.calorie = calorie
-            db.session.commit()
-            return {"message": "საკვების ინფორმაცია წარმატებით შეიცვალა"}, 200
-        else:
-            return {"message": "საკვები არ არის ნაპოვნი"}, 404
-
-    def delete(self, food_id):
-        food = Food.query.get(food_id)
-        if food:
-            db.session.delete(food)
-            db.session.commit()
-            return {"message": "წარმატებით წაიშალა"}, 200
-        else:
-            return {"message": "საკვები არ არის ნაპოვნი"}, 404
 
 
-api.add_resource(FoodResource, "/api/food", "/api/food/<int:food_id>")
-
-@app.route('/')
-def home():
-    foods = Food.query.all()
-    return render_template('home.html', foods=foods)
-
-@app.route('/filter_by_date', methods=['POST'])
-def filter_by_date():
-    filter_date = request.form['filter_date']
-    filter_hour = request.form['filter_hour']
-    filter_datetime = datetime.fromisoformat(filter_date + ' ' + filter_hour)
-    foods = Food.query.filter(db.func.extract('hour', Food.date_of_reception) == filter_datetime.hour).all()
-    return render_template('home.html', foods=foods)
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    logged = session.get('user_id')
-    if(not logged):
-        if request.method == 'POST':
-            username = request.form['username']
-            password = request.form['password']
-            user = User(username=username, password=password)
-            db.session.add(user)
-            db.session.commit()
-            flash('რეგისტრაცია წარმატებით გაიარეთ.', 'success')
-            return redirect(url_for('login'))
-        return render_template('register.html')
-    return redirect(url_for('home'))
-
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    logged = session.get('user_id')
-    if(not logged):
-        if request.method == 'POST':
-            username = request.form['username']
-            password = request.form['password']
-            user = User.query.filter_by(username=username, password=password).first()
-            if user:
-                session['user_id'] = user.id
-                session['username'] = username
-                flash('წარმატებით შეხვედით!', 'success')
-                return redirect(url_for('home'))
-            else:
-                flash('არასწორი მომხარებლის სახელი ან პაროლი.', 'error')
-        return render_template('login.html')
-    return redirect(url_for('home'))
+M2S2
+en
+conf t
+hostname M2S2
+banner motd #This Network is Secured by BTU#
+line console 0
+password btu-mid-con
+login 
+exit
+vlan 100 
+name marketing
+vlan 200 
+name sales
+vlan 300 
+name management
+vlan 400 
+name native
+vlan 500 
+name unused
+exit
+int fa0/2
+switchport mode access
+switchport access vlan 200
+int fa0/4
+switchport mode access
+switchport access vlan 100
+int range fa0/3
+switchport mode trunk
+switchport trunk native vlan 400
+int range fa0/1, fa0/5-24, gi0/1-2
+switchport mode access 
+switchport access vlan 500
+shutdown
+exit
+int vlan 300
+ip address 10.0.0.198 255.255.255.224
+exit
+ip default-gateway 10.0.0.194
+exit
+exit
+copy run-start
 
 
-@app.route('/logout')
-def logout():
-    session.pop('user_id', None)
-    session.pop('username', None)
-    flash('თქვენ გამოხვედით.', 'success')
-    return redirect(url_for('home'))
-
-@app.route('/add_food', methods=['GET', 'POST'])
-def add_food():
-    if request.method == 'POST':
-        name = request.form['name']
-        category = request.form['category']
-        calorie = int(request.form['calorie'])
-        food = Food(name=name, category=category, calorie=calorie)
-        db.session.add(food)
-        db.session.commit()
-        flash('საკვების ინფორმაცია წარმატებით დაემატა!', 'success')
-        return redirect(url_for('home'))
-    return render_template('add_food.html')
-
-
-@app.route('/edit_food/<int:food_id>', methods=['GET', 'POST'])
-def edit_food(food_id):
-    food = Food.query.get_or_404(food_id)
-    if request.method == 'POST':
-        food.name = request.form['name']
-        food.category = request.form['category']
-        food.calorie = int(request.form['calorie'])
-        db.session.commit()
-        flash('საკვების ინფორმაცია განახლდა!', 'success')
-        return redirect(url_for('home'))
-    return render_template('edit_food.html', food=food)
-
-
-@app.route('/delete_food/<int:food_id>', methods=['GET'])
-def delete_food(food_id):
-    food = Food.query.get_or_404(food_id)
-    db.session.delete(food)
-    db.session.commit()
-    flash('საკვების ინფორმაცია ამოიშალა!', 'success')
-    return redirect(url_for('home'))
+M2R1
+en
+conf t
+hostname M2R1
+enable secret btu-mid
+int gi0/1
+description link_To_M2R2
+ip address 100.0.0.1 255.255.255.252
+no shutdown
+exit
+int gi0/0
+no shutdown
+exit
+int gi0/0.100
+encapsulation dot1q 100
+ip address 10.0.0.130 255.255.255.192
+int gi0/0.200
+encapsulation dot1q 200
+ip address 10.0.0.2 255.255.255.128
+int gi0/0.300
+encapsulation dot1q 300
+ip address 10.0.0.194 255.255.255.224
+exit
+router eigrp 10
+no auto-summary
+network 10.0.0.128 0.0.0.63 
+network 10.0.0.0 0.0.0.127
+network 10.0.0.192 0.0.0.31
+network 100.0.0.0 0.0.0.3
+passive-interface gi0/0
+exit
+exit
+copy run start
 
 
-@app.route('/food/<int:food_id>', methods = ["GET"])
-def view_food(food_id):
-    food = Food.query.get_or_404(food_id)
-    return render_template('food.html', food=food)
-
-@app.route('/about')
-def about():
-    return render_template('about.html')
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
+M2R2
+en
+conf t
+hostname M2R2
+enable secret btu-mid
+int gi0/1
+ip address 100.0.0.2 255.255.255.252
+no shutdown
+exit
+int gi0/0
+ip address 172.16.0.2 255.255.255.0
+no shutdown
+exit
+router eigrp 10
+no auto-summary
+network 172.16.0.0 0.0.0.255
+network 100.0.0.0 0.0.0.3
+passive-interface gi0/0
+exit
+ip domain-name btu.ge
+crypto key generate rsa general-keys modulus 4000
+username exam-mid secret btu-mid-ssh
+line vty 0 15
+transport input ssh
+login local
+exit
+exit
+copy run start
+x
+
+
+-------------------------------ipv6--------------------------
+2002:db8:b2b2:0000:  0:  0:  0:  0
+2002:db8:b2b2::/48
+
+2002:db8:b2b2:0::/64 - LAN1
+2002:db8:b2b2:1::/64 - LAN2
+9
+R1
+int gi0/1
+ipv6 address 2002:db8:b2b2::b/64
+ipv6 address fe80::10 link-local
+no shutdown
+exit
+int se0/3/0
+ipv6 address 2002:db8:acad::9/64
+ipv6 address fe80::10 link-local
+no shut
+exit
+
+ipv6 unicast-routing
+ipv6 route 2002:db9:acad::/64 se0/3/0 fe80::20
+ipv6 route 2002:db8:b2b2:1::/64 se0/3/0 fe80::20
+
+
+R2
+int gi0/1
+ipv6 address 2002:db9:acad::10/64
+ipv6 address fe80::20 link-local
+no shutdown
+exit
+int se0/3/0
+ipv6 address 2002:db8:acad::a/64
+ipv6 address fe80::20 link-local
+no shut
+exit
+
+ipv6 unicast-routing
+ipv6 route 2002:db8:b2b2::/64 se0/3/0 fe80::10
+ipv6 route 2002:db8:b2b2:1::/64 gi0/1 fe80::30
+
+
+R3
+int gi0/1
+ipv6 address 2002:db8:b2b2:1::b/64
+ipv6 address fe80::30 link-local
+no shutdown
+exit
+int gi0/0
+ipv6 address 2002:db9:acad::11/64
+ipv6 address fe80::30 link-local
+no shut
+exit
+
+ipv6 unicast-routing
+ipv6 route 2002:db8:acad::/64 gi0/0 fe80::20
+ipv6 route 2002:db8:b2b2::/64 gi0/0 fe80::2
